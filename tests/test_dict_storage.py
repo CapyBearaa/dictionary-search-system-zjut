@@ -1,96 +1,58 @@
 # tests/test_dict_storage.py
 import pytest
-
-# Импортируем вашу реализацию и Mock-классы для тестов
-from src.storages.dict_storage import DictionaryStorage, MockItem, MockCollection
-
+from src.storages.dict_storage import DictStorage, Item
 
 @pytest.fixture
 def storage():
-    """Returns a fresh instance of DictionaryStorage for each test."""
-    return DictionaryStorage()
+    """Provides a fresh DictStorage instance with sample data for each test."""
+    s = DictStorage()
+    s.add(Item("3120100001", "John Doe", "A1"))
+    s.add(Item("3120100002", "Jane Smith", "B2"))
+    s.add(Item("3120100003", "Bob Wilson", "A1"))
+    return s
 
+def test_add_and_get_all_success(storage):
+    """Verifies that items are added and the total count is correct."""
+    all_items = storage.get_all()
+    assert len(all_items) == 3
 
-def test_add_and_retrieve_item_success(storage):
-    """Tests O(1) retrieval for a single Item (Leaf)."""
-    key = "ISBN9780321765723"
-    book = MockItem(key, "The C++ Programming Language", "Bjarne Stroustrup")
-    
-    assert storage.add(key, book) is True
-    
-    retrieved_book = storage.retrieve(key)
-    assert retrieved_book == book
-    assert storage.size() == 1
-
-
-def test_retrieve_not_found(storage):
-    """Tests retrieval of a key that does not exist."""
-    assert storage.retrieve(999) is None
-    assert storage.contains(999) is False
-
-
-def test_update_item(storage):
-    """Tests O(1) update operation."""
-    key = "T_001"
-    original = MockItem(key, "Old Title", "Author X")
-    updated = MockItem(key, "New Title", "Author Y")
-    
-    storage.add(key, original)
-    storage.add(key, updated) # This should overwrite
-    
-    assert storage.size() == 1
-    assert storage.retrieve(key) == updated
-    assert storage.retrieve(key) != original
-
-
-def test_remove_success(storage):
-    """Tests O(1) removal operation."""
-    key = 404
-    book = MockItem(key, "Non-existent Book", "Error")
-    
-    storage.add(key, book)
-    
-    assert storage.remove(key) is True
-    assert storage.contains(key) is False
-    assert storage.size() == 0
-
-
-def test_add_and_retrieve_collection_composite(storage):
+def test_search_by_id_success(storage):
     """
-    Tests adding and retrieving a Collection (Composite) object.
+    Tests searching by ID (the primary O(1) operation).
     """
-    # Create Composite object
-    shelf_key = "SF_SHELF"
-    sci_fi_shelf = MockCollection(shelf_key, "Science Fiction Shelf")
-    sci_fi_shelf.add_component(MockItem("DUNE", "Dune", "Herbert"))
-    sci_fi_shelf.add_component(MockItem("RING", "Ringworld", "Niven"))
-    
-    # Add the entire Composite object to storage (O(1))
-    storage.add(shelf_key, sci_fi_shelf)
-    
-    retrieved_shelf = storage.retrieve(shelf_key)
-    assert retrieved_shelf is not None
-    assert retrieved_shelf.title == "Science Fiction Shelf"
-    # Check the recursive size of the retrieved component
-    assert retrieved_shelf.get_size() == 2 # 2 items inside the shelf
-    assert storage.size() == 1 # Only one component (the shelf) at the top level
+    item = storage.search_by_id("3120100002")
+    assert item is not None
+    assert item.name == "Jane Smith"
+    assert item.group == "B2"
 
+def test_search_by_id_not_found(storage):
+    """Verifies that searching for a non-existent ID returns None."""
+    item = storage.search_by_id("9999999999")
+    assert item is None
 
-def test_deep_search_for_item_in_collection(storage):
+def test_add_update_existing_id(storage):
     """
-    Tests deep_search_all, ensuring it finds an item nested within a Collection.
+    Verifies that adding an item with an existing ID updates the record.
     """
-    # Setup Collection
-    sci_fi_shelf = MockCollection("SFC", "SciFi")
-    target_book = MockItem("TARGET_KEY", "The Martian", "Andy Weir")
-    sci_fi_shelf.add_component(target_book)
+    updated_item = Item("3120100001", "John Updated", "C3")
+    storage.add(updated_item)
     
-    # Add Collection to Storage
-    storage.add("COL_1", sci_fi_shelf)
+    # Total count should remain 3
+    assert len(storage.get_all()) == 3 
     
-    # Search for the key of the nested item
-    results = storage.deep_search_all("TARGET_KEY")
+    # Data should reflect the update
+    retrieved = storage.search_by_id("3120100001")
+    assert retrieved.name == "John Updated"
+    assert retrieved.group == "C3"
+
+def test_search_by_group(storage):
+    """
+    Tests searching by group (an O(N) operation).
+    """
+    results = storage.search_by_group("A1")
+    assert len(results) == 2
     
-    # Check that the item was found
-    assert len(results) == 1
-    assert results[0].title == "The Martian"
+    # Verify both IDs are present in the results
+    ids = {item.student_id for item in results}
+    assert "3120100001" in ids
+    assert "3120100003" in ids
