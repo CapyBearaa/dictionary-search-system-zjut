@@ -1,5 +1,5 @@
-# src/storages/dict_storage.py
-from typing import Any, Dict, List, Optional
+from src.interfaces.item import Item
+from typing import Dict, List, Optional
 
 
 class DictStorage:
